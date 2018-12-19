@@ -1,38 +1,61 @@
 const createError = require('http-errors');
 const express = require('express');
 const path = require('path');
-
-if(process.env.NODE_ENV === 'development') {
-    require("dotenv").config();
-}
-
 const cookieParser = require('cookie-parser');
 const logger = require('morgan');
+const bodyParser = require('body-parser');
+const flash = require('connect-flash');
+const session = require('express-session');
+const passport = require('passport');
+const localStrategy = require('passport-local').Strategy;
+const app = require('express')();
+const http = require('http').Server(app);
+const io = require('socket.io')(http);
+const db = require('./db/index');
 
-const indexRouter = require('./routes/index');
-const usersRouter = require('./routes/users');
-const testRouter = require('./routes/test_db_connection');
+app.set( 'io', io )
 
+http.listen(process.env.port || 3000, function(){
+  console.log('listening on *:3000');
+});
 
-const app = express();
+if(process.env.NODE_ENV === 'development') {
+  require("dotenv").config();
+}
 
+/*io.on('connection', function(socket){
+  socket.on('chat message', function(msg){
+    io.emit('chat message', msg);
+  });
+});*/
 
+app.use(flash());
 
-// view engine setup
 app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'pug');
+app.set('view engine', 'ejs');
 
+app.use(session({
+    secret: 'secret', //ToDo we need to change this (is an env var needed, would that even work?)
+    saveUninitialized: true,
+    resave: true
+  }));
+
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(logger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
-app.use('/test-db-connection', testRouter);
+app.use(bodyParser.urlencoded({
+  extended: true
+}));
+app.use(bodyParser.json());
 
-// catch 404 and forward to error handler
+const indexRouter = require('./routes/index')(io, db);
+
+app.use('/', indexRouter);
+
 app.use(function(req, res, next) {
   next(createError(404));
 });
